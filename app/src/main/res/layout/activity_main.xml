@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Simple Dictionary"
+        android:textStyle="bold"
+        android:textSize="24dp"
+        android:textAlignment="center"
+        android:id="@+id/title"/>
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+        <AutoCompleteTextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Search word here"
+            android:layout_toLeftOf="@id/search_button"
+            android:id="@+id/search_input"
+            android:background="@drawable/rounded_corner"
+            android:textSize="18dp"
+            android:padding="12dp"
+            android:completionThreshold="1"/>
+
+        <Button
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:id="@+id/search_button"
+            android:text="Search"
+            android:layout_alignParentEnd="true"
+            android:layout_marginStart="8dp"/>
+
+        <ProgressBar
+            android:layout_width="100dp"
+            android:layout_height="24dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerInParent="true"
+            android:indeterminateTint="@color/orange"
+            android:id="@+id/progress_bar"
+            android:visibility="gone"/>
+
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <Button
+            android:id="@+id/speak_button"
+            android:layout_width="500dp"
+            android:layout_height="wrap_content"
+            android:text="Phát âm 🔊"
+            android:textSize="18sp"
+            android:gravity="center"
+            android:layout_marginEnd="8dp" />
+    </RelativeLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:fillViewport="true">
+
+        <TextView
+            android:id="@+id/textViewDefinition"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:padding="8dp" />
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/favorite_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⭐ Yêu thích" />
+
+        <Button
+            android:id="@+id/show_favorites_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📌 Từ yêu thích"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+    <TextView
+        android:id="@+id/textViewSynonyms"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Đồng nghĩa:"
+        android:textStyle="bold"
+        android:paddingTop="8dp"
+        android:paddingBottom="4dp" />
+
+    <TextView
+        android:id="@+id/textViewAntonyms"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Trái nghĩa:"
+        android:textStyle="bold"
+        android:paddingBottom="8dp" />
+    <TextView
+        android:id="@+id/his"
+        android:text="Lịch sử tra cứu:"
+        android:textStyle="bold"
+        android:layout_marginTop="8dp"
+        android:layout_width="match_parent"
+        android:layout_height="30dp"/>
+    <ListView
+        android:id="@+id/history_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="16dp"
+        android:dividerHeight="1dp"
+        android:divider="@android:color/darker_gray"
+        android:textColor="@color/text_dynamic"
+        android:background="@drawable/listview_border"
+        />
+    <Switch
+        android:id="@+id/dark_mode_switch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Chế độ tối"
+        android:layout_margin="16dp"
+        />
+
+</LinearLayout>
