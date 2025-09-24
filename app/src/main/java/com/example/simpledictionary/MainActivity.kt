@@ -1,11 +1,16 @@
 package com.example.simpledictionary
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.speech.tts.TextToSpeech
 import android.view.View
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import java.util.*
 import android.content.SharedPreferences
@@ -13,6 +18,12 @@ import android.text.Editable
 import android.text.TextWatcher
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatDelegate
+
+// Thêm các import cần thiết cho ML Kit
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var tts: TextToSpeech
@@ -28,6 +39,35 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var tvAntonyms: TextView
     private lateinit var prefs: SharedPreferences
 
+    // Khởi tạo các biến mới cho chức năng dịch từ ảnh
+    private lateinit var btnCamera: Button
+    private lateinit var autoCompleteTextView: AutoCompleteTextView
+    private lateinit var resultView: TextView
+
+    // Các ActivityResultLauncher mới để xử lý kết quả từ camera và thư viện
+    private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val imageBitmap = result.data?.extras?.get("data") as? Bitmap
+            if (imageBitmap != null) {
+                recognizeTextFromImage(imageBitmap)
+            }
+        }
+    }
+
+    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val imageUri: Uri? = result.data?.data
+            if (imageUri != null) {
+                try {
+                    val imageBitmap = MediaStore.Images.Media.getBitmap(this.contentResolver, imageUri)
+                    recognizeTextFromImage(imageBitmap)
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Lỗi khi tải ảnh", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     @SuppressLint("MissingInflatedId")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,9 +79,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         favButton = findViewById(R.id.favorite_button)
         favoriteListButton = findViewById(R.id.show_favorites_button)
         val searchButton = findViewById<Button>(R.id.search_button)
-        val resultView = findViewById<TextView>(R.id.textViewDefinition)
-        val autoCompleteTextView = findViewById<AutoCompleteTextView>(R.id.search_input)
+        resultView = findViewById(R.id.textViewDefinition)
+        autoCompleteTextView = findViewById(R.id.search_input)
         val historyListView = findViewById<ListView>(R.id.history_list)
+        btnCamera = findViewById(R.id.btn_camera) // Đảm bảo bạn đã có nút này trong layout
 
         val sharedPref = getSharedPreferences("settings", MODE_PRIVATE)
         val isDarkMode = sharedPref.getBoolean("dark_mode", false)
@@ -123,6 +164,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val query = autoCompleteTextView.text.toString().trim().lowercase()
             currentWord = query
             searchAndDisplay(query, resultView)
+        }
+
+        // Bắt sự kiện click cho nút chụp ảnh
+        btnCamera.setOnClickListener {
+            startImageRecognition()
         }
 
         historyListView.setOnItemClickListener { _, _, position, _ ->
@@ -241,5 +287,48 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             tts.shutdown()
         }
         super.onDestroy()
+    }
+
+    // Hàm mới để xử lý nhận dạng văn bản
+    private fun recognizeTextFromImage(bitmap: Bitmap) {
+        // Tùy chọn để nhận dạng các ngôn ngữ dựa trên chữ Latinh.
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        val image = InputImage.fromBitmap(bitmap, 0)
+
+        // Bắt đầu xử lý nhận dạng
+        recognizer.process(image)
+            .addOnSuccessListener { visionText ->
+                val recognizedText = visionText.text
+                if (recognizedText.isNotEmpty()) {
+                    autoCompleteTextView.setText(recognizedText)
+                    searchAndDisplay(recognizedText, resultView)
+                } else {
+                    Toast.makeText(this, "Không tìm thấy văn bản nào trong ảnh.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Lỗi khi nhận dạng: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    // Hàm để khởi động việc chọn ảnh
+    private fun startImageRecognition() {
+        val options = arrayOf<CharSequence>("Chụp ảnh", "Chọn từ thư viện", "Hủy")
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Chọn nguồn ảnh")
+        builder.setItems(options) { dialog, item ->
+            when (item) {
+                0 -> { // Chụp ảnh
+                    val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+                    takePictureLauncher.launch(takePictureIntent)
+                }
+                1 -> { // Chọn từ thư viện
+                    val pickImageIntent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+                    pickImageLauncher.launch(pickImageIntent)
+                }
+                2 -> dialog.dismiss()
+            }
+        }
+        builder.show()
     }
 }

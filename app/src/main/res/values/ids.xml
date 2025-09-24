@@ -2,4 +2,14 @@
 <resources>
     <item name="textViewSynonyms" type="id" />
     <item name="textViewAntonyms" type="id" />
+    <item name="search_input" type="id" />
+    <item name="progress_bar" type="id" />
+    <item name="speak_button" type="id" />
+    <item name="btn_camera" type="id" />
+    <item name="textViewDefinition" type="id" />
+    <item name="favorite_button" type="id" />
+    <item name="show_favorites_button" type="id" />
+    <item name="his" type="id" />
+    <item name="history_list" type="id" />
+    <item name="dark_mode_switch" type="id" />
 </resources>
