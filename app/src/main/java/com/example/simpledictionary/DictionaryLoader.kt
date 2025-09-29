@@ -5,18 +5,16 @@ import kotlinx.coroutines.*
 import java.net.HttpURLConnection
 import java.net.URL
 
-// Dữ liệu chính trong từ điển
 data class DictionaryEntry(
     val word: String,
     val definition: String,
 )
-// Dữ liệu bổ sung qua API
+
 data class EnrichedEntry(
     val synonyms: List<String>,
     val antonyms: List<String>
 )
 
-// Nạp từ điển từ file anhViet.txt
 object DictionaryLoader {
     fun loadDictionary(context: Context): List<DictionaryEntry> {
         val inputStream = context.assets.open("anhViet.txt")
@@ -54,7 +52,6 @@ object DictionaryLoader {
     }
 }
 
-// Enricher: gọi API để lấy từ đồng nghĩa/trái nghĩa
 object DictionaryEnricher {
     fun enrichWithSynonymsAntonyms(entry: DictionaryEntry, callback: (EnrichedEntry) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {

@@ -1,29 +1,37 @@
 package com.example.simpledictionary
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.speech.tts.TextToSpeech
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.View
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import java.util.*
-import android.content.SharedPreferences
-import android.text.Editable
-import android.text.TextWatcher
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-
-// Thêm các import cần thiết cho ML Kit
+import androidx.core.content.FileProvider
+import com.google.mlkit.nl.languageid.LanguageIdentification
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.Translator
+import com.google.mlkit.nl.translate.TranslatorOptions
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import java.io.File
+import java.util.Locale
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var tts: TextToSpeech
@@ -39,32 +47,69 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var tvAntonyms: TextView
     private lateinit var prefs: SharedPreferences
 
-    // Khởi tạo các biến mới cho chức năng dịch từ ảnh
+    // UI & OCR
     private lateinit var btnCamera: Button
     private lateinit var autoCompleteTextView: AutoCompleteTextView
     private lateinit var resultView: TextView
 
-    // Các ActivityResultLauncher mới để xử lý kết quả từ camera và thư viện
-    private val takePictureLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val imageBitmap = result.data?.extras?.get("data") as? Bitmap
-            if (imageBitmap != null) {
-                recognizeTextFromImage(imageBitmap)
-            }
-        }
-    }
+    // FileProvider URI khi chụp ảnh
+    private var cameraImageUri: Uri? = null
 
-    private val pickImageLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val imageUri: Uri? = result.data?.data
-            if (imageUri != null) {
-                try {
-                    val imageBitmap = MediaStore.Images.Media.getBitmap(this.contentResolver, imageUri)
-                    recognizeTextFromImage(imageBitmap)
-                } catch (e: Exception) {
-                    Toast.makeText(this, "Lỗi khi tải ảnh", Toast.LENGTH_SHORT).show()
+    // ===== Permissions
+    private val requestCameraPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) openCamera()
+            else Toast.makeText(this, "Cần quyền camera", Toast.LENGTH_SHORT).show()
+        }
+
+    private val requestReadImagesPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) openGallery()
+            else Toast.makeText(this, "Cần quyền đọc ảnh để chọn từ thư viện", Toast.LENGTH_SHORT).show()
+        }
+
+    // ===== Launchers
+    // Camera: đọc ảnh từ EXTRA_OUTPUT (cameraImageUri)
+    private val takePictureLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val uri = cameraImageUri
+                if (uri != null) {
+                    try {
+                        val bitmap = decodeBitmapFromUri(uri)
+                        recognizeTextFromImage(bitmap)
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Không đọc được ảnh camera: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(this, "Không có ảnh trả về", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+
+    // Gallery: đọc ảnh từ Uri trả về
+    private val pickImageLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val uri: Uri? = result.data?.data
+                if (uri != null) {
+                    try {
+                        val bitmap = decodeBitmapFromUri(uri)
+                        recognizeTextFromImage(bitmap)
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Lỗi khi tải ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+    private fun decodeBitmapFromUri(uri: Uri): Bitmap {
+        return if (Build.VERSION.SDK_INT >= 28) {
+            val src = ImageDecoder.createSource(contentResolver, uri)
+            ImageDecoder.decodeBitmap(src)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaStore.Images.Media.getBitmap(contentResolver, uri)
         }
     }
 
@@ -82,14 +127,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         resultView = findViewById(R.id.textViewDefinition)
         autoCompleteTextView = findViewById(R.id.search_input)
         val historyListView = findViewById<ListView>(R.id.history_list)
-        btnCamera = findViewById(R.id.btn_camera) // Đảm bảo bạn đã có nút này trong layout
+        btnCamera = findViewById(R.id.btn_camera)
 
+        // Dark mode
         val sharedPref = getSharedPreferences("settings", MODE_PRIVATE)
         val isDarkMode = sharedPref.getBoolean("dark_mode", false)
         AppCompatDelegate.setDefaultNightMode(
             if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
         )
-
         val darkModeSwitch = findViewById<Switch>(R.id.dark_mode_switch)
         darkModeSwitch.isChecked = isDarkMode
         darkModeSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -166,10 +211,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             searchAndDisplay(query, resultView)
         }
 
-        // Bắt sự kiện click cho nút chụp ảnh
-        btnCamera.setOnClickListener {
-            startImageRecognition()
-        }
+        // Nút OCR (chụp ảnh / chọn ảnh)
+        btnCamera.setOnClickListener { startImageRecognition() }
 
         historyListView.setOnItemClickListener { _, _, position, _ ->
             val word = searchHistory[position]
@@ -198,8 +241,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val intent = Intent(this, FavoriteActivity::class.java)
             startActivity(intent)
         }
+
+        // Nút luyện nói (màn SpeechActivity)
+        val btnSpeech = findViewById<Button>(R.id.btn_speech)
+        btnSpeech?.setOnClickListener {
+            startActivity(Intent(this, com.example.simpledictionary.speech.SpeechActivity::class.java))
+        }
     }
 
+    // ================== Tra từ & enrich ==================
     private fun searchAndDisplay(query: String?, resultView: TextView) {
         if (query.isNullOrBlank()) return
 
@@ -289,19 +339,31 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onDestroy()
     }
 
-    // Hàm mới để xử lý nhận dạng văn bản
+    // ================== OCR + Translate ==================
     private fun recognizeTextFromImage(bitmap: Bitmap) {
-        // Tùy chọn để nhận dạng các ngôn ngữ dựa trên chữ Latinh.
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         val image = InputImage.fromBitmap(bitmap, 0)
 
-        // Bắt đầu xử lý nhận dạng
+        Toast.makeText(this, "Đang nhận dạng văn bản…", Toast.LENGTH_SHORT).show()
+
         recognizer.process(image)
             .addOnSuccessListener { visionText ->
-                val recognizedText = visionText.text
+                val recognizedText = visionText.text.trim()
                 if (recognizedText.isNotEmpty()) {
-                    autoCompleteTextView.setText(recognizedText)
-                    searchAndDisplay(recognizedText, resultView)
+                    detectAndTranslate(recognizedText, targetLangTag = "vi") { translated, srcTag, error ->
+                        if (error != null) {
+                            Toast.makeText(this, "Lỗi dịch: $error", Toast.LENGTH_LONG).show()
+                            autoCompleteTextView.setText(recognizedText)
+                            searchAndDisplay(recognizedText, resultView)
+                            return@detectAndTranslate
+                        }
+
+                        showOcrTranslateDialog(
+                            original = recognizedText,
+                            translated = translated ?: "",
+                            detectedLang = srcTag ?: "und"
+                        )
+                    }
                 } else {
                     Toast.makeText(this, "Không tìm thấy văn bản nào trong ảnh.", Toast.LENGTH_SHORT).show()
                 }
@@ -311,24 +373,123 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
     }
 
-    // Hàm để khởi động việc chọn ảnh
+    private fun detectAndTranslate(
+        sourceText: String,
+        targetLangTag: String = "vi",
+        callback: (translated: String?, srcTag: String?, error: String?) -> Unit
+    ) {
+        val langId = LanguageIdentification.getClient()
+        langId.identifyLanguage(sourceText)
+            .addOnSuccessListener { tag ->
+                val detected = tag ?: "und"
+                val src = TranslateLanguage.fromLanguageTag(detected) ?: TranslateLanguage.ENGLISH
+                val dst = TranslateLanguage.fromLanguageTag(targetLangTag) ?: TranslateLanguage.VIETNAMESE
+
+                val options = TranslatorOptions.Builder().setSourceLanguage(src).setTargetLanguage(dst).build()
+                val translator: Translator = Translation.getClient(options)
+
+                Toast.makeText(this, "Đang chuẩn bị model dịch (${detected}→$targetLangTag)…", Toast.LENGTH_SHORT).show()
+
+                translator.downloadModelIfNeeded()
+                    .addOnSuccessListener {
+                        translator.translate(sourceText)
+                            .addOnSuccessListener { translated ->
+                                callback(translated, detected, null)
+                            }
+                            .addOnFailureListener { e ->
+                                callback(null, detected, e.message ?: "Translate failed")
+                            }
+                    }
+                    .addOnFailureListener { e ->
+                        callback(null, detected, "Không thể tải model: ${e.message}")
+                    }
+            }
+            .addOnFailureListener { e ->
+                callback(null, null, "Không xác định được ngôn ngữ: ${e.message}")
+            }
+    }
+
+    private fun showOcrTranslateDialog(original: String, translated: String, detectedLang: String) {
+        val msg = buildString {
+            appendLine("Ngôn ngữ phát hiện: $detectedLang")
+            appendLine()
+            appendLine("Văn bản gốc:")
+            appendLine(original)
+            appendLine()
+            appendLine("— — —")
+            appendLine()
+            appendLine("Bản dịch (vi):")
+            appendLine(translated)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Kết quả quét & dịch")
+            .setMessage(msg)
+            .setPositiveButton("Chép bản dịch") { _, _ ->
+                val cm = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("translation", translated))
+                Toast.makeText(this, "Đã chép bản dịch", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Điền vào ô tìm kiếm") { _, _ ->
+                autoCompleteTextView.setText(translated)
+                // Nếu muốn tra nghĩa sau khi dịch:
+                // searchAndDisplay(translated, resultView)
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
+    }
+
+    // ================== Camera/Gallery ==================
     private fun startImageRecognition() {
         val options = arrayOf<CharSequence>("Chụp ảnh", "Chọn từ thư viện", "Hủy")
-        val builder = AlertDialog.Builder(this)
-        builder.setTitle("Chọn nguồn ảnh")
-        builder.setItems(options) { dialog, item ->
-            when (item) {
-                0 -> { // Chụp ảnh
-                    val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                    takePictureLauncher.launch(takePictureIntent)
+        AlertDialog.Builder(this)
+            .setTitle("Chọn nguồn ảnh")
+            .setItems(options) { dialog, item ->
+                when (item) {
+                    0 -> {
+                        // Chụp ảnh
+                        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            openCamera()
+                        } else {
+                            requestCameraPermission.launch(Manifest.permission.CAMERA)
+                        }
+                    }
+                    1 -> {
+                        // Chọn ảnh
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            // Thường không bắt buộc khi dùng picker, nhưng xin để an toàn nếu bạn đọc file trực tiếp
+                            requestReadImagesPermission.launch(Manifest.permission.READ_MEDIA_IMAGES)
+                        } else {
+                            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                                openGallery()
+                            } else {
+                                requestReadImagesPermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+                            }
+                        }
+                    }
+                    else -> dialog.dismiss()
                 }
-                1 -> { // Chọn từ thư viện
-                    val pickImageIntent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
-                    pickImageLauncher.launch(pickImageIntent)
-                }
-                2 -> dialog.dismiss()
+            }.show()
+    }
+
+    private fun openCamera() {
+        try {
+            val dir = File(cacheDir, "images").apply { if (!exists()) mkdirs() }
+            val photo = File.createTempFile("ocr_", ".jpg", dir)
+            cameraImageUri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", photo)
+
+            val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                putExtra(MediaStore.EXTRA_OUTPUT, cameraImageUri)
+                addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
+            takePictureLauncher.launch(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Không mở được camera: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-        builder.show()
+    }
+
+    private fun openGallery() {
+        val pick = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+        pickImageLauncher.launch(pick)
     }
 }

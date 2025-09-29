@@ -2,8 +2,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
 
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Android 13+ khi chọn ảnh trong thư viện -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Cho Android < 13 nếu cần chọn ảnh từ bộ nhớ -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- Luyện nói -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -15,7 +27,7 @@
         android:theme="@style/Theme.SimpleDictionary"
         tools:targetApi="31">
         <activity android:name=".FavoriteActivity" />
-
+        <activity android:name=".speech.SpeechActivity" />
         <activity
             android:name=".WelcomeActivity"
             android:exported="true">
@@ -28,6 +40,16 @@
         <activity
             android:name=".MainActivity"
             android:exported="true" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

@@ -58,6 +58,7 @@
 
     </RelativeLayout>
 
+    <!-- Hàng nút trên cùng (giữ nguyên) -->
     <LinearLayout
         android:id="@+id/button_row_top"
         android:layout_width="0dp"
@@ -87,9 +88,29 @@
             android:gravity="center"
             android:text="Chụp ảnh 📸"
             android:textSize="18sp" />
-
     </LinearLayout>
 
+    <!-- HÀNG MỚI: nút mở chế độ Luyện nói (dịch & chấm điểm) -->
+    <LinearLayout
+        android:id="@+id/button_row_speech"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/button_row_top">
+
+        <Button
+            android:id="@+id/btn_speech"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Luyện nói (dịch và chấm điểm)"
+            android:textSize="18sp" />
+    </LinearLayout>
+
+    <!-- ĐIỀU CHỈNH: scroll view bây giờ bám dưới hàng mới -->
     <ScrollView
         android:id="@+id/definition_scroll_view"
         android:layout_width="0dp"
@@ -98,7 +119,7 @@
         android:fillViewport="true"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/button_row_top">
+        app:layout_constraintTop_toBottomOf="@id/button_row_speech">
 
         <TextView
             android:id="@+id/textViewDefinition"
